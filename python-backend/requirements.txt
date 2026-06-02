@@ -1,0 +1,25 @@
+# ============================================================
+# 大学生学习管理平台 — Python 后端微服务 + Streamlit 可视化
+# 技术栈：FastAPI + SQLAlchemy + MySQL + Streamlit
+# 说明：
+#   - FastAPI 提供 REST API 供前端调用
+#   - Streamlit 提供独立的可视化界面（运行在 :8501 端口）
+# ============================================================
+
+# ── FastAPI 后端 ─────────────────────────────────────────────
+fastapi==0.111.0          # Web 框架，提供路由、依赖注入等
+uvicorn[standard]==0.29.0 # ASGI 服务器，负责运行 FastAPI
+sqlalchemy==2.0.30        # ORM 框架，映射 Python 类与 MySQL 表
+pymysql==1.1.1            # MySQL 驱动（纯 Python 实现，无需额外安装）
+cryptography==42.0.7      # pymysql SSL 支持（可选）
+python-dotenv==1.0.1      # 从 .env 文件加载环境变量
+pydantic==2.7.1           # 数据校验与序列化
+pydantic-settings==2.2.1  # 基于 pydantic 的配置管理
+python-multipart==0.0.9   # 支持 multipart/form-data 文件上传
+passlib[bcrypt]==1.7.4    # 密码哈希（bcrypt 算法）
+python-jose[cryptography]==3.3.0  # JWT Token 生成与验证
+
+# ── Streamlit 可视化界面 ──────────────────────────────────────
+streamlit==1.35.0         # Streamlit 核心框架（多页面应用）
+plotly==5.22.0            # 交互式图表（柱状图、折线图、饼图、雷达图、热力图）
+pandas==2.2.2             # 数据处理与 DataFrame 操作
