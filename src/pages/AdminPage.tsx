@@ -1556,14 +1556,35 @@ function KeywordPanel() {
     const words = word.split(/[,，\n]+/).map(w => w.trim()).filter(Boolean);
     setAdding(true);
     let success = 0;
+    let dupCount = 0;
+    let permDenied = false;
     for (const w of words) {
       const { error } = await supabase.from('keyword_filters').insert({ keyword: w, list_type: listType, created_by: user.id });
-      if (!error) success++;
+      if (!error) {
+        success++;
+      } else if (error.code === '23505') {
+        // 唯一约束冲突：该 (keyword, list_type) 组合已存在
+        dupCount++;
+      } else if (error.code === '42501') {
+        // RLS 权限拒绝
+        permDenied = true;
+      }
     }
     setAdding(false);
     setNewWord('');
-    if (success > 0) { toast.success(`成功添加 ${success} 个关键词`); load(); }
-    else toast.error('添加失败，可能已存在');
+    if (permDenied) {
+      toast.error('权限不足，请确认您的管理员角色');
+      return;
+    }
+    if (success > 0) {
+      toast.success(`成功添加 ${success} 个关键词${dupCount > 0 ? `，${dupCount} 个已存在跳过` : ''}`);
+      load();
+    } else if (dupCount > 0) {
+      toast.warning(`所有关键词已存在（共 ${dupCount} 个），无需重复添加`);
+      load(); // 仍刷新列表，确保显示已有数据
+    } else {
+      toast.error('添加失败，请重试');
+    }
   };
 
   const handleDelete = async (id: string) => {
@@ -1593,7 +1614,11 @@ function KeywordPanel() {
       const { error } = await supabase.from('keyword_filters').insert({ ...entry, created_by: user.id });
       if (!error) success++;
     }
-    toast.success(`文件导入完成，成功添加 ${success} / ${entries.length} 个关键词`);
+    if (success > 0) {
+      toast.success(`文件导入完成，成功添加 ${success} / ${entries.length} 个关键词`);
+    } else {
+      toast.warning(`所有关键词已存在或导入失败（共 ${entries.length} 个）`);
+    }
     load();
   };
 

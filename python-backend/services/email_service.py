@@ -6,11 +6,10 @@
 """
 
 import smtplib
+import ssl
 import logging
 from email.mime.multipart import MIMEMultipart   # 多部分邮件容器
 from email.mime.text import MIMEText             # 文本/HTML 邮件部分
-from email.header import Header                  # 处理中文主题编码
-from email.utils import formataddr               # 格式化发件人 "名称 <地址>"
 
 from sqlalchemy.orm import Session
 from config import settings
@@ -61,28 +60,28 @@ class EmailService:
 
         try:
             # ── 步骤 1：构建邮件消息 ──────────────────────────────
-            # MIMEMultipart("alternative") 表示邮件包含多种格式（纯文本 + HTML）
-            # 邮件客户端会自动选择最佳格式显示
+            # MIMEMultipart("alternative") 包含纯文本 + HTML，客户端自动选择最佳格式显示
             msg = MIMEMultipart("alternative")
 
-            # 设置发件人（使用 formataddr 处理中文名称，防止乱码）
-            msg["From"] = formataddr(
-                (settings.email_from_name, settings.email_user),
-                charset="utf-8"
-            )
-            # 设置收件人
-            msg["To"] = to_email
-            # 设置主题（Header 处理中文编码，防止主题显示乱码）
-            msg["Subject"] = Header(subject, "utf-8")
+            # 发件人：仅使用邮箱地址，避免中文名称触发 RFC 2047 编码在部分客户端显示乱码
+            msg["From"] = settings.email_user
+            msg["To"]   = to_email
+            # 主题直接赋值；Python 3.6+ email 库自动以 utf-8 编码处理非 ASCII 字符
+            msg["Subject"] = subject
 
-            # 将 HTML 内容附加到邮件（指定编码为 utf-8 支持中文）
-            html_part = MIMEText(html_content, "html", "utf-8")
-            msg.attach(html_part)
+            # 纯文本兜底（去除 HTML 标签的简化版），防止不支持 HTML 的客户端显示乱码
+            import re as _re
+            plain_text = _re.sub(r'<[^>]+>', '', html_content)
+            plain_text = _re.sub(r'\s{2,}', ' ', plain_text).strip()
+            msg.attach(MIMEText(plain_text, "plain", "utf-8"))
+
+            # HTML 正文（指定编码为 utf-8 支持中文）
+            msg.attach(MIMEText(html_content, "html", "utf-8"))
 
             # ── 步骤 2：连接 SMTP 服务器并发送 ────────────────────
             # 使用 SMTP_SSL 建立加密连接（SSL 在连接建立时就加密）
-            # 与 starttls 不同，SSL 模式从一开始就是加密的，更安全
-            with smtplib.SMTP_SSL(self.SMTP_HOST, self.SMTP_PORT) as server:
+            ctx = ssl.create_default_context()
+            with smtplib.SMTP_SSL(self.SMTP_HOST, self.SMTP_PORT, context=ctx) as server:
                 # 设置调试级别：0=不输出调试信息，1=输出 SMTP 通信过程
                 server.set_debuglevel(0)
 
