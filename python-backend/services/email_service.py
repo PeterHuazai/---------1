@@ -291,6 +291,155 @@ class EmailService:
         </div>
         """
 
+    def build_admin_notification_html(
+        self,
+        sender_name: str,
+        subject: str,
+        content: str,
+    ) -> str:
+        """
+        构建管理员收到用户联系消息时的通知邮件 HTML
+
+        Args:
+            sender_name: 发送用户的姓名/用户名
+            subject:     消息主题
+            content:     消息正文
+
+        Returns:
+            str: 完整 HTML 字符串
+        """
+        # 对正文进行 HTML 转义，防止 XSS
+        import html as html_mod
+        safe_content = html_mod.escape(content).replace("\n", "<br>")
+        safe_subject = html_mod.escape(subject)
+        safe_sender  = html_mod.escape(sender_name)
+
+        return f"""
+        <div style="font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+                    max-width: 560px; margin: 0 auto; background: #f5f7fa; padding: 24px;">
+          <div style="background: #fff; border-radius: 12px; overflow: hidden;
+                      box-shadow: 0 2px 12px rgba(0,0,0,0.08);">
+
+            <div style="background: #1d2129; padding: 20px 28px;">
+              <h2 style="color: #fff; margin: 0; font-size: 17px;">📬 新用户联系消息</h2>
+              <p style="color: rgba(255,255,255,0.65); margin: 4px 0 0; font-size: 13px;">
+                大学生学习管理平台 · 管理员通知
+              </p>
+            </div>
+
+            <div style="padding: 24px 28px;">
+              <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+                <tr>
+                  <td style="color: #888; padding: 6px 0; width: 70px; vertical-align: top;">发件人</td>
+                  <td style="color: #1d2129; font-weight: 600; padding: 6px 0;">{safe_sender}</td>
+                </tr>
+                <tr>
+                  <td style="color: #888; padding: 6px 0; vertical-align: top;">主题</td>
+                  <td style="color: #1d2129; font-weight: 600; padding: 6px 0;">{safe_subject}</td>
+                </tr>
+              </table>
+
+              <div style="margin-top: 16px; background: #f8f9ff; border-radius: 8px;
+                          border-left: 4px solid #165DFF; padding: 16px 20px;">
+                <p style="color: #888; font-size: 12px; margin: 0 0 8px;">消息内容</p>
+                <p style="color: #1d2129; font-size: 14px; line-height: 1.7; margin: 0;">
+                  {safe_content}
+                </p>
+              </div>
+
+              <p style="color: #888; font-size: 13px; margin: 16px 0 0;">
+                请登录管理后台查看并回复此消息。
+              </p>
+            </div>
+
+            <div style="background: #f5f7fa; padding: 14px 28px;
+                        border-top: 1px solid #e5e6eb;">
+              <p style="color: #aaa; font-size: 12px; margin: 0;">
+                此邮件由系统自动发送，请勿直接回复。
+              </p>
+            </div>
+          </div>
+        </div>
+        """
+
+    def build_course_reminder_html(
+        self,
+        username: str,
+        course_name: str,
+        location: str,
+        teacher: str,
+        start_time: str,
+        minutes_before: int,
+    ) -> str:
+        """
+        构建上课提醒邮件的 HTML 内容
+
+        Args:
+            username:       学生姓名
+            course_name:    课程名称
+            location:       上课地点
+            teacher:        任课教师
+            start_time:     上课时间（格式化字符串）
+            minutes_before: 距上课还有多少分钟
+
+        Returns:
+            str: 完整 HTML 字符串
+        """
+        return f"""
+        <div style="font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+                    max-width: 520px; margin: 0 auto; background: #f5f7fa; padding: 24px;">
+          <div style="background: #fff; border-radius: 12px; overflow: hidden;
+                      box-shadow: 0 2px 12px rgba(0,0,0,0.08);">
+
+            <div style="background: #00b96b; padding: 20px 28px;">
+              <h2 style="color: #fff; margin: 0; font-size: 18px;">🔔 上课提醒</h2>
+              <p style="color: rgba(255,255,255,0.85); margin: 4px 0 0; font-size: 13px;">
+                距上课还有 <strong>{minutes_before} 分钟</strong>，请做好准备！
+              </p>
+            </div>
+
+            <div style="padding: 24px 28px;">
+              <p style="color: #333; font-size: 15px; margin: 0 0 16px;">
+                亲爱的 <strong>{username}</strong>，您即将有一节课开始：
+              </p>
+
+              <div style="background: #f0fff4; border-left: 4px solid #00b96b;
+                          border-radius: 8px; padding: 16px 20px; margin-bottom: 20px;">
+                <table style="border-collapse: collapse; width: 100%;">
+                  <tr>
+                    <td style="color: #888; font-size: 13px; padding: 4px 0; width: 80px;">课程名称</td>
+                    <td style="color: #1d2129; font-size: 14px; font-weight: 600;">{course_name}</td>
+                  </tr>
+                  <tr>
+                    <td style="color: #888; font-size: 13px; padding: 4px 0;">上课时间</td>
+                    <td style="color: #00b96b; font-size: 14px; font-weight: 600;">{start_time}</td>
+                  </tr>
+                  <tr>
+                    <td style="color: #888; font-size: 13px; padding: 4px 0;">上课地点</td>
+                    <td style="color: #1d2129; font-size: 14px;">{location or '待确认'}</td>
+                  </tr>
+                  <tr>
+                    <td style="color: #888; font-size: 13px; padding: 4px 0;">任课老师</td>
+                    <td style="color: #1d2129; font-size: 14px;">{teacher or '待确认'}</td>
+                  </tr>
+                </table>
+              </div>
+
+              <p style="color: #666; font-size: 13px; margin: 0;">
+                请按时到达，认真听课。祝学习顺利！📖
+              </p>
+            </div>
+
+            <div style="background: #f5f7fa; padding: 14px 28px;
+                        border-top: 1px solid #e5e6eb;">
+              <p style="color: #aaa; font-size: 12px; margin: 0;">
+                此提醒由学习助手自动发送。如需调整提醒时间，请在课程管理中修改「提前提醒分钟数」。
+              </p>
+            </div>
+          </div>
+        </div>
+        """
+
 
 # 全局邮件服务单例
 email_service = EmailService()

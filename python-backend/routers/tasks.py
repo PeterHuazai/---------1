@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 from database import get_db
 from models.orm_models import Task, TaskType, TaskStatus, User
 from routers.auth import get_current_user
+from utils.keyword_filter import check_keywords
 
 logger = logging.getLogger(__name__)
 
@@ -94,7 +95,15 @@ def create_task(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """添加新任务"""
+    """添加新任务（会对任务名称和备注进行关键词检测）"""
+    # 关键词检测：检查任务名称和备注
+    check_text = f"{req.name} {req.notes or ''}"
+    hits = check_keywords(check_text, db)
+    if hits:
+        raise HTTPException(
+            status_code=400,
+            detail=f"任务名称或备注包含违禁词：{', '.join(hits[:3])}，请修改后重新提交",
+        )
     task = Task(user_id=current_user.id, **req.model_dump())
     db.add(task)
     db.commit()

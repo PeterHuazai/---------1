@@ -93,7 +93,28 @@ def get_current_user(
     if user is None or not user.is_active:
         raise credentials_exception
 
+    # 封禁检查：banned_until 不为空且仍在封禁期内则拒绝访问
+    if user.banned_until and user.banned_until > datetime.utcnow():
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"账号已被封禁，解封时间：{user.banned_until.strftime('%Y-%m-%d %H:%M')}。原因：{user.ban_reason or '违规行为'}",
+        )
+
     return user
+
+
+def get_admin_user(current_user: User = Depends(get_current_user)) -> User:
+    """
+    管理员专用依赖项：在 get_current_user 基础上进一步验证管理员身份
+
+    用法：在仅管理员可访问的路由中加入 admin: User = Depends(get_admin_user)
+    """
+    if current_user.role.value != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="需要管理员权限才能执行此操作",
+        )
+    return current_user
 
 
 # ── 请求/响应数据模型 ─────────────────────────────────────────
@@ -117,16 +138,18 @@ class LoginResponse(BaseModel):
 
 class UserProfileResponse(BaseModel):
     """用户信息响应体"""
-    id:         str
-    username:   str
-    full_name:  Optional[str]
-    school:     Optional[str]
-    major:      Optional[str]
-    grade:      Optional[str]
-    email:      Optional[str]
-    avatar_url: Optional[str]
-    role:       str
-    created_at: str
+    id:          str
+    username:    str
+    full_name:   Optional[str]
+    school:      Optional[str]
+    major:       Optional[str]
+    grade:       Optional[str]
+    email:       Optional[str]
+    avatar_url:  Optional[str]
+    role:        str
+    banned_until: Optional[str]   # 封禁到期时间，None=未封禁
+    ban_reason:   Optional[str]
+    created_at:  str
 
     class Config:
         from_attributes = True  # 允许从 ORM 对象直接转换
@@ -237,6 +260,8 @@ def get_me(current_user: User = Depends(get_current_user)):
         email=current_user.email,
         avatar_url=current_user.avatar_url,
         role=current_user.role.value,
+        banned_until=current_user.banned_until.isoformat() if current_user.banned_until else None,
+        ban_reason=current_user.ban_reason,
         created_at=current_user.created_at.isoformat() if current_user.created_at else "",
     )
 

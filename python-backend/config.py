@@ -27,6 +27,11 @@ class Settings(BaseSettings):
     email_pass: str = ""
     # 发件人显示名称
     email_from_name: str = "学习助手"
+    # SMTP 服务器地址和 SSL 端口（163 邮箱固定值）
+    email_host: str = "smtp.163.com"
+    email_port: int = 465
+    # 管理员收件邮箱（用于接收用户联系消息和系统告警）
+    admin_email: str = ""
 
     # ── JWT 认证配置 ─────────────────────────────────────────
     # JWT 签名密钥，生产环境务必替换为随机长字符串

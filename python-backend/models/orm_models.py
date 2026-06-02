@@ -87,6 +87,10 @@ class User(Base):
     role        = Column(SAEnum(UserRole), default=UserRole.STUDENT, nullable=False, comment="用户角色")
     # 是否激活
     is_active   = Column(Boolean, default=True, nullable=False, comment="账号是否激活")
+    # 封禁到期时间，NULL 表示未被封禁；到期时间 > now() 则表示仍处于封禁状态
+    banned_until = Column(DateTime, nullable=True, default=None, comment="封禁解除时间，NULL=未封禁")
+    # 封禁原因
+    ban_reason   = Column(String(200), nullable=True, comment="封禁原因")
     # 创建时间，自动填充
     created_at  = Column(DateTime, server_default=func.now(), comment="注册时间")
     # 更新时间，每次修改自动更新
@@ -287,4 +291,56 @@ class Notification(Base):
 
     __table_args__ = (
         Index("ix_notifications_user_read", "user_id", "is_read"),
+    )
+
+
+# ── 关键词过滤表 ──────────────────────────────────────────────
+
+class KeywordFilter(Base):
+    """
+    关键词过滤表（keyword_filters）
+    存储黑名单（禁止）和白名单（豁免）关键词，用于内容审核
+    """
+    __tablename__ = "keyword_filters"
+
+    id          = Column(String(36), primary_key=True, default=gen_uuid, comment="关键词 UUID")
+    keyword     = Column(String(100), nullable=False, comment="关键词文本（小写存储）")
+    # blacklist=禁止发布含此词的内容；whitelist=包含此词则不触发黑名单
+    list_type   = Column(String(10), nullable=False, default="blacklist",
+                         comment="类型：blacklist=黑名单 / whitelist=白名单")
+    created_by  = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"),
+                         nullable=True, comment="创建管理员 ID")
+    created_at  = Column(DateTime, server_default=func.now(), comment="创建时间")
+
+    __table_args__ = (
+        Index("ix_keyword_filters_type", "list_type"),
+    )
+
+
+# ── 用户联系消息表 ─────────────────────────────────────────────
+
+class ContactMessage(Base):
+    """
+    联系消息表（contact_messages）
+    用户向管理员发送的咨询/反馈消息
+    """
+    __tablename__ = "contact_messages"
+
+    id         = Column(String(36), primary_key=True, default=gen_uuid, comment="消息 UUID")
+    user_id    = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"),
+                        nullable=False, comment="发送用户 ID")
+    subject    = Column(String(200), nullable=False, comment="消息主题")
+    content    = Column(Text, nullable=False, comment="消息正文")
+    # 管理员是否已读
+    is_read    = Column(Boolean, default=False, nullable=False, comment="管理员是否已读")
+    # 管理员回复（可选）
+    reply      = Column(Text, nullable=True, comment="管理员回复内容")
+    replied_at = Column(DateTime, nullable=True, comment="回复时间")
+    created_at = Column(DateTime, server_default=func.now(), comment="发送时间")
+
+    user = relationship("User")
+
+    __table_args__ = (
+        Index("ix_contact_messages_user", "user_id"),
+        Index("ix_contact_messages_read", "is_read"),
     )

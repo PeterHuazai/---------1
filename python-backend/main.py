@@ -18,7 +18,7 @@ from database import engine, Base
 import models.orm_models  # noqa: F401
 
 # 导入所有路由模块
-from routers import auth, courses, tasks, goals, features
+from routers import auth, courses, tasks, goals, features, admin, notifications
 
 # ── 配置日志 ──────────────────────────────────────────────────
 logging.basicConfig(
@@ -44,14 +44,21 @@ app = FastAPI(
 Authorization: Bearer <your_token>
 ```
 
+### v2.0 新增功能
+- 🛡️ **封禁系统**：管理员可封禁/解封用户，封禁期间禁止一切写操作
+- 🔍 **关键词过滤**：黑白名单管理，内容提交自动审核
+- 📬 **联系管理员**：用户发消息 → 管理员收邮件 + 后台回复 → 站内通知用户
+- 🔔 **站内通知**：系统/课程/任务三类通知，支持已读管理
+- 👨‍💼 **管理员接口**：独立 `/admin` 路由组，完整权限控制
+
 ### 数据库
 使用 **MySQL** 存储所有业务数据，通过 SQLAlchemy ORM 操作。
 
 ### 邮件服务
 通过 **163 邮箱 SMTP** 发送 HTML 格式邮件，
-需要在 `.env` 文件中配置 `EMAIL_PASS`（163 邮箱授权码）。
+需要在 `.env` 文件中配置 `EMAIL_PASS`（163 邮箱授权码）和 `ADMIN_EMAIL`（管理员收件地址）。
     """,
-    version="1.0.0",
+    version="2.0.0",
     docs_url="/docs",       # Swagger UI 文档地址
     redoc_url="/redoc",     # ReDoc 文档地址
 )
@@ -74,11 +81,13 @@ app.add_middleware(
 
 # ── 注册路由 ──────────────────────────────────────────────────
 # 每个路由模块都有自己的 prefix（如 /auth、/courses 等）
-app.include_router(auth.router)          # 认证接口：/auth/...
-app.include_router(courses.router)       # 课程接口：/courses/...
-app.include_router(tasks.router)         # 任务接口：/tasks/...
-app.include_router(goals.router)         # 打卡接口：/goals/...
-app.include_router(features.router)      # 邮件/报告/建议：/email/...、/report/...、/advice/...
+app.include_router(auth.router)              # 认证接口：/auth/...
+app.include_router(courses.router)           # 课程接口：/courses/...
+app.include_router(tasks.router)             # 任务接口：/tasks/...
+app.include_router(goals.router)             # 打卡接口：/goals/...
+app.include_router(features.router)          # 邮件/报告/建议：/email/...、/report/...、/advice/...
+app.include_router(admin.router)             # 管理员接口：/admin/...
+app.include_router(notifications.router)     # 站内通知：/notifications/...
 
 
 # ── 启动时自动建表 ────────────────────────────────────────────
@@ -99,6 +108,7 @@ def startup_event():
 
     logger.info(f"🚀 服务启动成功，访问地址：http://{settings.host}:{settings.port}")
     logger.info(f"📖 接口文档：http://localhost:{settings.port}/docs")
+    logger.info(f"🛡️  已启用：封禁检测 / 关键词过滤 / 站内通知 / 管理员接口")
 
 
 # ── 健康检查接口 ──────────────────────────────────────────────
@@ -118,7 +128,7 @@ def root():
     return {
         "message": "欢迎使用大学生学习管理平台 API",
         "docs":    f"http://localhost:{settings.port}/docs",
-        "version": "1.0.0",
+        "version": "2.0.0",
     }
 
 

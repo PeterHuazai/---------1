@@ -16,6 +16,7 @@ from pydantic import BaseModel, Field
 from database import get_db
 from models.orm_models import Goal, Checkin, GoalPeriod, User
 from routers.auth import get_current_user
+from utils.keyword_filter import check_keywords
 
 logger = logging.getLogger(__name__)
 
@@ -96,7 +97,14 @@ def create_goal(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """新建学习目标"""
+    """新建学习目标（会对目标名称和描述进行关键词检测）"""
+    check_text = f"{req.name} {req.description or ''}"
+    hits = check_keywords(check_text, db)
+    if hits:
+        raise HTTPException(
+            status_code=400,
+            detail=f"目标名称或描述包含违禁词：{', '.join(hits[:3])}，请修改后重新提交",
+        )
     goal = Goal(user_id=current_user.id, **req.model_dump())
     db.add(goal)
     db.commit()
@@ -140,6 +148,15 @@ def create_checkin(
     ).first()
     if not goal:
         raise HTTPException(status_code=404, detail="学习目标不存在")
+
+    # 关键词检测：检查打卡备注
+    if req.notes:
+        hits = check_keywords(req.notes, db)
+        if hits:
+            raise HTTPException(
+                status_code=400,
+                detail=f"打卡备注包含违禁词：{', '.join(hits[:3])}，请修改后重新提交",
+            )
 
     # 未提供日期时默认为今天
     checkin_date = req.checkin_date or date.today().strftime("%Y-%m-%d")
