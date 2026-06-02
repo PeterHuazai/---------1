@@ -7,7 +7,7 @@ import {
   Plus, ChevronRight, MessageSquare, Eye, Clock,
   ArrowLeft, Send, Loader2, Pin, Search, User,
   Flame, TrendingUp, Bell, X, MessageCircle,
-  ChevronLeft, VolumeX,
+  ChevronLeft, VolumeX, Trash2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -434,6 +434,9 @@ function PostDetail({ post, onBack, onStartDM }: {
   const [loginPrompt, setLoginPrompt] = useState(false);
   const [authorName, setAuthorName] = useState(post.author_name || '用户');
   const [isBanned, setIsBanned] = useState(false);
+  const [deletingReplyId, setDeletingReplyId] = useState<string | null>(null);
+  const [deletingPost, setDeletingPost] = useState(false);
+  const [postDeleted, setPostDeleted] = useState(false);
 
   useEffect(() => {
     supabase.from('forum_posts').update({ views: (post.views || 0) + 1 }).eq('id', post.id).then(() => {});
@@ -492,7 +495,43 @@ function PostDetail({ post, onBack, onStartDM }: {
     toast.success('回复成功');
   };
 
+  // 删除单条回复（仅自己的）
+  const handleDeleteReply = async (replyId: string) => {
+    setDeletingReplyId(replyId);
+    const { error } = await supabase.from('forum_replies')
+      .update({ is_deleted: true })
+      .eq('id', replyId)
+      .eq('author_id', user!.id);
+    setDeletingReplyId(null);
+    if (error) { toast.error('删除失败'); return; }
+    setReplies(prev => prev.filter(r => r.id !== replyId));
+    toast.success('回复已删除');
+  };
+
+  // 帖主删除整个帖子
+  const handleDeletePost = async () => {
+    setDeletingPost(true);
+    const { error } = await supabase.from('forum_posts')
+      .update({ is_deleted: true })
+      .eq('id', post.id)
+      .eq('author_id', user!.id);
+    setDeletingPost(false);
+    if (error) { toast.error('删除失败'); return; }
+    toast.success('帖子已删除');
+    setPostDeleted(true);
+    setTimeout(() => onBack(), 800);
+  };
+
   const floorLabel = (idx: number) => idx === 0 ? '楼主' : `${idx + 1}楼`;
+
+  if (postDeleted) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-gray-400">
+        <Trash2 className="w-10 h-10 mb-3 text-gray-200" />
+        <p className="text-sm">帖子已删除，正在返回…</p>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -511,6 +550,18 @@ function PostDetail({ post, onBack, onStartDM }: {
             </Badge>
           )}
           <h1 className="text-base font-bold text-gray-900 flex-1 text-balance">{post.title}</h1>
+          {/* 帖主删帖按钮 */}
+          {user && user.id === post.author_id && (
+            <button
+              onClick={handleDeletePost}
+              disabled={deletingPost}
+              className="flex items-center gap-1 text-xs text-gray-400 hover:text-red-500 transition-colors shrink-0 px-2 py-1 rounded-lg hover:bg-red-50"
+              title="删除此帖"
+            >
+              {deletingPost ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+              删除帖子
+            </button>
+          )}
         </div>
 
         {/* 楼主（1楼） */}
@@ -575,6 +626,20 @@ function PostDetail({ post, onBack, onStartDM }: {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs text-gray-400">{new Date(r.created_at).toLocaleString('zh-CN')}</span>
+                    {/* 作者删除自己的回复 */}
+                    {user && r.author_id === user.id && (
+                      <button
+                        onClick={() => handleDeleteReply(r.id)}
+                        disabled={deletingReplyId === r.id}
+                        className="flex items-center gap-0.5 text-xs text-gray-300 hover:text-red-400 transition-colors"
+                        title="删除该回复"
+                      >
+                        {deletingReplyId === r.id
+                          ? <Loader2 className="w-3 h-3 animate-spin" />
+                          : <Trash2 className="w-3 h-3" />}
+                        删除
+                      </button>
+                    )}
                   </div>
                   <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap text-pretty">{r.content}</p>
                   {user && r.author_id !== user.id && (

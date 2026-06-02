@@ -234,13 +234,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 </div>
               </>
             ) : (
-              /* 未登录：显示登录/注册按钮 → 弹出登录提示弹窗 */
+              /* 未登录：直接跳转登录页 */
               <div className="hidden md:flex items-center gap-2">
-                <Button variant="ghost" onClick={() => setLoginPrompt(true)}
+                <Button variant="ghost" onClick={() => navigate('/login')}
                   className="h-9 px-4 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-xl">
                   登录
                 </Button>
-                <Button onClick={() => setLoginPrompt(true)}
+                <Button onClick={() => navigate('/login')}
                   className="h-9 px-5 text-sm font-medium bg-[#165DFF] hover:bg-[#165DFF]/90 text-white rounded-xl">
                   免费注册
                 </Button>
@@ -336,7 +336,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               ) : (
                 <>
                   <Button className="w-full bg-[#165DFF] hover:bg-[#165DFF]/90 text-white rounded-xl"
-                    onClick={() => { setMobileOpen(false); setLoginPrompt(true); }}>
+                    onClick={() => { setMobileOpen(false); navigate('/login'); }}>
                     登录 / 免费注册
                   </Button>
                 </>

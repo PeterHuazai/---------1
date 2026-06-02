@@ -519,6 +519,13 @@ export default function StudyGroupsPage() {
         });
         setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 80);
       })
+      .on('postgres_changes', {
+        event: 'DELETE', schema: 'public', table: 'group_messages',
+        filter: `group_id=eq.${activeGroup.id}`,
+      }, (payload) => {
+        const old = payload.old as { id: string };
+        setMessages(prev => prev.filter(m => m.id !== old.id));
+      })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [activeGroup]);
@@ -624,6 +631,18 @@ export default function StudyGroupsPage() {
     setSending(false);
     if (error) { toast.error('发送失败'); return; }
     setContent('');
+  };
+
+  // 撤回消息（仅限 2 分钟内自己的消息）
+  const handleRetractMessage = async (msgId: string, createdAt: string) => {
+    const ageMs = Date.now() - new Date(createdAt).getTime();
+    if (ageMs > 2 * 60 * 1000) {
+      toast.error('只能撤回 2 分钟内发送的消息');
+      return;
+    }
+    const { error } = await supabase.from('group_messages').delete().eq('id', msgId);
+    if (error) { toast.error('撤回失败'); return; }
+    toast.success('消息已撤回');
   };
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -844,8 +863,10 @@ export default function StudyGroupsPage() {
                         const p = profileMap[msg.user_id];
                         const isMine = user?.id === msg.user_id;
                         const name = p?.full_name || p?.email?.split('@')[0] || '同学';
+                        // 发送时间距现在是否在 2 分钟内
+                        const canRetract = isMine && (Date.now() - new Date(msg.created_at).getTime()) < 2 * 60 * 1000;
                         return (
-                          <div key={msg.id} className={`flex gap-2 ${isMine ? 'flex-row-reverse' : ''}`}>
+                          <div key={msg.id} className={`flex gap-2 group ${isMine ? 'flex-row-reverse' : ''}`}>
                             <Avatar className="w-7 h-7 shrink-0 mt-0.5">
                               <AvatarImage src={p?.avatar_url ?? undefined} />
                               <AvatarFallback className="bg-[#165DFF]/10 text-[#165DFF] text-[10px]">
@@ -860,9 +881,21 @@ export default function StudyGroupsPage() {
                                 )}
                                 <span className="text-[10px] text-gray-300">{timeAgo(msg.created_at)}</span>
                               </div>
-                              <div className={`px-3 py-2 rounded-2xl text-sm leading-relaxed break-words ${
-                                isMine ? 'bg-[#165DFF] text-white rounded-tr-sm' : 'bg-gray-100 text-gray-800 rounded-tl-sm'
-                              }`}>{msg.content}</div>
+                              <div className={`flex items-end gap-1.5 ${isMine ? 'flex-row-reverse' : ''}`}>
+                                <div className={`px-3 py-2 rounded-2xl text-sm leading-relaxed break-words ${
+                                  isMine ? 'bg-[#165DFF] text-white rounded-tr-sm' : 'bg-gray-100 text-gray-800 rounded-tl-sm'
+                                }`}>{msg.content}</div>
+                                {/* 撤回按钮：仅本人 2 分钟内可见（hover 显示） */}
+                                {canRetract && (
+                                  <button
+                                    onClick={() => handleRetractMessage(msg.id, msg.created_at)}
+                                    className="opacity-0 group-hover:opacity-100 transition-opacity text-[10px] text-gray-400 hover:text-red-400 whitespace-nowrap shrink-0 mb-0.5"
+                                    title="撤回消息（2分钟内有效）"
+                                  >
+                                    撤回
+                                  </button>
+                                )}
+                              </div>
                             </div>
                           </div>
                         );
