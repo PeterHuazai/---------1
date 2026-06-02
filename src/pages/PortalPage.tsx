@@ -17,7 +17,11 @@ import ContactAdminWidget from '@/components/ContactAdminWidget';
 import LoginPromptModal from '@/components/LoginPromptModal';
 
 // ─────────────────── 顶部公共导航（门户专用） ───────────────────
-function PortalNav() {
+interface PortalNavProps {
+  onTabSwitch?: (tab: 'news' | 'activities' | 'forum') => void;
+}
+
+function PortalNav({ onTabSwitch }: PortalNavProps) {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const [scrolled, setScrolled] = useState(false);
@@ -34,14 +38,30 @@ function PortalNav() {
     return () => window.removeEventListener('scroll', handler);
   }, []);
 
-  // 门户专属锚点链接
-  const portalLinks = [
-    { label: '首页', href: '/', isAnchor: true },
-    { label: '校园资讯', href: '#news', isAnchor: true },
-    { label: '社团活动', href: '#activities', isAnchor: true },
-    { label: '二手交易', href: '#secondhand', isAnchor: true },
-    { label: '失物招领', href: '#lostfound', isAnchor: true },
-    { label: '论坛', href: '/forum', isAnchor: false },
+  // 点击 Tab 类链接：滚动到内容区 + 切换 Tab
+  const handleTabLink = (tab: 'news' | 'activities' | 'forum') => {
+    onTabSwitch?.(tab);
+    setTimeout(() => {
+      document.getElementById('main-tabs')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 50);
+    setMobileOpen(false);
+  };
+
+  // 锚点区域跳转（二手/失物在右侧栏，直接滚动到对应 ID）
+  const handleAnchor = (id: string) => {
+    setTimeout(() => {
+      document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 50);
+    setMobileOpen(false);
+  };
+
+  const navItems = [
+    { label: '首页',     action: () => { navigate('/'); setMobileOpen(false); } },
+    { label: '校园资讯', action: () => handleTabLink('news') },
+    { label: '社团活动', action: () => handleTabLink('activities') },
+    { label: '二手交易', action: () => handleAnchor('secondhand') },
+    { label: '失物招领', action: () => handleAnchor('lostfound') },
+    { label: '论坛',     action: () => { navigate('/forum'); setMobileOpen(false); } },
   ];
 
   return (
@@ -58,37 +78,22 @@ function PortalNav() {
 
           {/* 桌面导航链接 */}
           <nav className="hidden md:flex items-center gap-1 flex-1">
-            {portalLinks.map(({ label, href, isAnchor }) => (
-              isAnchor ? (
-                <a key={label} href={href}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    scrolled
-                      ? 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-                      : 'text-white/90 hover:text-white hover:bg-white/10'
-                  }`}>
-                  {label}
-                </a>
-              ) : (
-                <button key={label} onClick={() => navigate(href)}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    scrolled
-                      ? 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-                      : 'text-white/90 hover:text-white hover:bg-white/10'
-                  }`}>
-                  {label}
-                </button>
-              )
-            ))}
-            {/* 已登录额外入口 */}
-            {user && (
-              <button
-                onClick={() => navigate('/campus')}
+            {navItems.map(({ label, action }) => (
+              <button key={label} onClick={action}
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                   scrolled
                     ? 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
                     : 'text-white/90 hover:text-white hover:bg-white/10'
-                }`}
-              >
+                }`}>
+                {label}
+              </button>
+            ))}
+            {/* 已登录额外入口 */}
+            {user && (
+              <button onClick={() => navigate('/campus')}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  scrolled ? 'text-gray-600 hover:text-gray-900 hover:bg-gray-100' : 'text-white/90 hover:text-white hover:bg-white/10'
+                }`}>
                 校园生活
               </button>
             )}
@@ -154,31 +159,15 @@ function PortalNav() {
               </button>
             </div>
             <nav className="flex-1 py-3 px-3 space-y-0.5">
-              {portalLinks.map(({ label, href, isAnchor }) => (
-                isAnchor ? (
-                  <a
-                    key={label}
-                    href={href}
-                    onClick={() => setMobileOpen(false)}
-                    className="flex items-center px-4 py-3 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-100"
-                  >
-                    {label}
-                  </a>
-                ) : (
-                  <button
-                    key={label}
-                    onClick={() => { navigate(href); setMobileOpen(false); }}
-                    className="w-full flex items-center px-4 py-3 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-100"
-                  >
-                    {label}
-                  </button>
-                )
+              {navItems.map(({ label, action }) => (
+                <button key={label} onClick={action}
+                  className="w-full flex items-center px-4 py-3 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-100 text-left">
+                  {label}
+                </button>
               ))}
               {user && (
-                <button
-                  onClick={() => { navigate('/campus'); setMobileOpen(false); }}
-                  className="w-full flex items-center px-4 py-3 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-100"
-                >
+                <button onClick={() => { navigate('/campus'); setMobileOpen(false); }}
+                  className="w-full flex items-center px-4 py-3 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-100">
                   校园生活
                 </button>
               )}
@@ -222,6 +211,7 @@ export default function PortalPage() {
   const [stats, setStats] = useState({ news: 0, activities: 0, secondhand: 0, lostfound: 0, users: 0 });
   const [loginPrompt, setLoginPrompt] = useState<{ open: boolean; action?: string; path?: string }>({ open: false });
   const [tickerIdx, setTickerIdx] = useState(0);
+  const [activeTab, setActiveTab] = useState<'news' | 'activities' | 'forum'>('news');
   const tickerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const requireLogin = (path: string, label: string) => {
@@ -291,7 +281,7 @@ export default function PortalPage() {
 
   return (
     <div className="min-h-screen bg-[#F0F2F7]">
-      <PortalNav />
+      <PortalNav onTabSwitch={setActiveTab} />
 
       {/* ═══ 1. HERO 横幅 ═══ */}
       <section className="relative overflow-hidden"
@@ -399,6 +389,59 @@ export default function PortalPage() {
         )}
       </section>
 
+      {/* ═══ 1.5 平台三大核心亮点 ═══ */}
+      <section className="bg-white border-b border-[#E5E6EB]">
+        <div className="max-w-[1300px] mx-auto px-6 py-5">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* 亮点 1：智能截止预警 */}
+            <div className="flex items-start gap-4 p-4 rounded-2xl bg-gradient-to-br from-[#EEF3FF] to-[#F5F0FF] border border-[#165DFF]/10 hover:shadow-md transition-shadow">
+              <div className="w-10 h-10 rounded-xl bg-[#165DFF] flex items-center justify-center shrink-0">
+                <Bell className="w-5 h-5 text-white" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <p className="font-bold text-gray-800 text-sm">📅 智能截止预警</p>
+                  <Badge className="bg-[#165DFF]/10 text-[#165DFF] border-0 text-[10px] px-1.5 py-0">核心功能</Badge>
+                </div>
+                <p className="text-xs text-gray-500 leading-relaxed text-pretty">
+                  作业/考试截止前 24 小时自动提醒，再也不会因为忘记提交而遗憾——支持倒计时面板与颜色分级告警。
+                </p>
+              </div>
+            </div>
+            {/* 亮点 2：打卡热力图 */}
+            <div className="flex items-start gap-4 p-4 rounded-2xl bg-gradient-to-br from-[#FFF4E8] to-[#FFF0F0] border border-[#FF7D00]/10 hover:shadow-md transition-shadow">
+              <div className="w-10 h-10 rounded-xl bg-[#FF7D00] flex items-center justify-center shrink-0">
+                <Target className="w-5 h-5 text-white" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <p className="font-bold text-gray-800 text-sm">🔥 连续打卡热力图</p>
+                  <Badge className="bg-[#FF7D00]/10 text-[#FF7D00] border-0 text-[10px] px-1.5 py-0">最受欢迎</Badge>
+                </div>
+                <p className="text-xs text-gray-500 leading-relaxed text-pretty">
+                  GitHub 风格热力日历记录每日学习轨迹，连续打卡天数可见，激励自己坚持——专属成就徽章等你解锁。
+                </p>
+              </div>
+            </div>
+            {/* 亮点 3：校园一站式 */}
+            <div className="flex items-start gap-4 p-4 rounded-2xl bg-gradient-to-br from-[#EDFAF2] to-[#F0F9FF] border border-green-500/10 hover:shadow-md transition-shadow">
+              <div className="w-10 h-10 rounded-xl bg-green-600 flex items-center justify-center shrink-0">
+                <Building2 className="w-5 h-5 text-white" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <p className="font-bold text-gray-800 text-sm">🏫 校园信息一站式</p>
+                  <Badge className="bg-green-600/10 text-green-600 border-0 text-[10px] px-1.5 py-0">免费开放</Badge>
+                </div>
+                <p className="text-xs text-gray-500 leading-relaxed text-pretty">
+                  资讯、活动、二手、失物、论坛、空教室全部聚合——无需在多个平台来回切换，一个入口搞定全部校园生活。
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* ═══ 2. 实时数据统计条 ═══ */}
       <section className="bg-white border-b border-[#E5E6EB] shadow-sm sticky top-0 z-30">
         <div className="max-w-[1300px] mx-auto px-6">
@@ -428,8 +471,8 @@ export default function PortalPage() {
 
           {/* ── 左：资讯 & 活动 Tabs（占 2/3） ── */}
           <div className="lg:col-span-2 space-y-5">
-            <Tabs defaultValue="news">
-              <div className="flex items-center justify-between mb-3">
+            <Tabs value={activeTab} onValueChange={v => setActiveTab(v as 'news' | 'activities' | 'forum')}>
+              <div id="main-tabs" className="flex items-center justify-between mb-3">
                 <TabsList className="bg-white border border-[#E5E6EB] p-0.5 rounded-xl h-auto">
                   <TabsTrigger value="news" className="rounded-lg text-sm px-4 py-1.5 data-[state=active]:bg-[#165DFF] data-[state=active]:text-white">
                     <Megaphone className="w-3.5 h-3.5 mr-1.5" />校园资讯
@@ -580,7 +623,7 @@ export default function PortalPage() {
             )}
 
             {/* 二手市场 */}
-            <div className="bg-white rounded-2xl border border-[#E5E6EB]">
+            <div id="secondhand" className="bg-white rounded-2xl border border-[#E5E6EB]">
               <div className="flex items-center justify-between px-4 py-3 border-b border-[#E5E6EB]">
                 <h3 className="font-semibold text-gray-800 text-sm flex items-center gap-1.5">
                   <ShoppingBag className="w-4 h-4 text-[#FF7D00]" />二手市场
@@ -610,7 +653,7 @@ export default function PortalPage() {
             </div>
 
             {/* 失物招领 */}
-            <div className="bg-white rounded-2xl border border-[#E5E6EB]">
+            <div id="lostfound" className="bg-white rounded-2xl border border-[#E5E6EB]">
               <div className="flex items-center justify-between px-4 py-3 border-b border-[#E5E6EB]">
                 <h3 className="font-semibold text-gray-800 text-sm flex items-center gap-1.5">
                   <MapPinOff className="w-4 h-4 text-red-500" />失物招领
