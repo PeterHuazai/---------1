@@ -64,6 +64,7 @@ Deno.serve(async (req) => {
         host: 'smtp.163.com',
         ssl: true,
         port: 465,
+        timeout: 10000,
       });
 
       await client.sendAsync({
@@ -76,8 +77,10 @@ Deno.serve(async (req) => {
       console.log(`[notify-admin] 邮件已发送至管理员 ${adminEmail}`);
       return json({ success: true, message: `通知已发送至 ${adminEmail}` });
     } catch (mailErr) {
-      console.error('[notify-admin] SMTP发送失败:', String(mailErr));
-      return json({ success: true, note: '日志已记录，邮件发送失败: ' + String(mailErr) });
+      const errMsg = mailErr instanceof Error ? mailErr.message : String(mailErr);
+      console.error('[notify-admin] SMTP发送失败:', errMsg);
+      // 返回 500 让客户端能捕获错误
+      return json({ success: false, error: 'SMTP发送失败: ' + errMsg }, 500);
     }
   } catch (err) {
     return json({ error: String(err) }, 500);

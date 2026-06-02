@@ -33,15 +33,23 @@ export default function ContactAdminWidget() {
 
     if (error) { toast.error('发送失败，请稍后重试'); return; }
 
-    // 触发邮件通知给管理员
-    supabase.functions.invoke('notify-admin', {
-      body: {
-        message_id: inserted?.id,
-        sender_name: user.email || user.id,
-        subject: subject.trim(),
-        content: content.trim(),
-      },
-    }).catch(() => {/* 通知失败不影响用户体验 */});
+    // 触发邮件通知给管理员（await 确保发送完成，错误不影响用户）
+    try {
+      const { error: invokeErr } = await supabase.functions.invoke('notify-admin', {
+        body: {
+          message_id: inserted?.id,
+          sender_name: user.email || user.id,
+          subject: subject.trim(),
+          content: content.trim(),
+        },
+      });
+      if (invokeErr) {
+        const msg = await invokeErr?.context?.text?.().catch(() => invokeErr?.message || '未知错误');
+        console.error('[ContactAdmin] notify-admin 调用失败:', msg);
+      }
+    } catch (e) {
+      console.error('[ContactAdmin] notify-admin 异常:', e);
+    }
 
     setSent(true);
     setSubject('');

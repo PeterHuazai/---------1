@@ -17,7 +17,7 @@ import {
   Users, Newspaper, DoorOpen, ShoppingBag, Search as SearchIcon,
   Trash2, ShieldOff, ShieldCheck, Plus, Edit2, Eye, TrendingUp, Activity,
   Mail, Clock, CheckCircle, Circle, Key, UserCog, Ban, ScrollText, BarChart3,
-  Loader2, Calendar, MessageSquare, BookOpen, Pin, Send,
+  Loader2, Calendar, MessageSquare, BookOpen, Pin, Send, Filter, Tag, X as XIcon, Upload,
 } from 'lucide-react';
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -1522,7 +1522,240 @@ function ForumAdminPanel() {
 }
 
 // ─────────────────────────────────────────────────────────────
-type AdminTab = 'stats' | 'users' | 'news' | 'activities' | 'classrooms' | 'moderation' | 'messages' | 'logs' | 'forum';
+// 关键词过滤管理面板
+interface KeywordRow {
+  id: string;
+  keyword: string;
+  list_type: 'blacklist' | 'whitelist';
+  created_at: string;
+}
+
+function KeywordPanel() {
+  const { user } = useAuth();
+  const [keywords, setKeywords] = useState<KeywordRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [listType, setListType] = useState<'blacklist' | 'whitelist'>('blacklist');
+  const [newWord, setNewWord] = useState('');
+  const [adding, setAdding] = useState(false);
+  const [filterType, setFilterType] = useState<'all' | 'blacklist' | 'whitelist'>('all');
+  const fileInputRef = useCallback((node: HTMLInputElement | null) => { if (node) node.value = ''; }, []);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const { data } = await supabase.from('keyword_filters').select('*').order('created_at', { ascending: false });
+    setKeywords((data || []) as KeywordRow[]);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleAdd = async () => {
+    const word = newWord.trim();
+    if (!word || !user) return;
+    // 批量支持：逗号/换行分隔
+    const words = word.split(/[,，\n]+/).map(w => w.trim()).filter(Boolean);
+    setAdding(true);
+    let success = 0;
+    for (const w of words) {
+      const { error } = await supabase.from('keyword_filters').insert({ keyword: w, list_type: listType, created_by: user.id });
+      if (!error) success++;
+    }
+    setAdding(false);
+    setNewWord('');
+    if (success > 0) { toast.success(`成功添加 ${success} 个关键词`); load(); }
+    else toast.error('添加失败，可能已存在');
+  };
+
+  const handleDelete = async (id: string) => {
+    const { error } = await supabase.from('keyword_filters').delete().eq('id', id);
+    if (error) { toast.error('删除失败'); return; }
+    setKeywords(prev => prev.filter(k => k.id !== id));
+    toast.success('已删除');
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+    const text = await file.text();
+    // 支持 CSV（第一列关键词，可选第二列类型）或纯文本每行一个
+    const lines = text.split(/\r?\n/).filter(l => l.trim());
+    const entries: { keyword: string; list_type: 'blacklist' | 'whitelist' }[] = [];
+    for (const line of lines) {
+      const parts = line.split(',');
+      const kw = parts[0]?.trim();
+      if (!kw || kw.toLowerCase() === 'keyword') continue; // 跳过标题行
+      const lt = (parts[1]?.trim().toLowerCase() as 'blacklist' | 'whitelist') || listType;
+      if (kw) entries.push({ keyword: kw, list_type: ['blacklist','whitelist'].includes(lt) ? lt : listType });
+    }
+    if (!entries.length) { toast.error('文件中未找到有效关键词'); return; }
+    let success = 0;
+    for (const entry of entries) {
+      const { error } = await supabase.from('keyword_filters').insert({ ...entry, created_by: user.id });
+      if (!error) success++;
+    }
+    toast.success(`文件导入完成，成功添加 ${success} / ${entries.length} 个关键词`);
+    load();
+  };
+
+  const displayed = keywords.filter(k => filterType === 'all' || k.list_type === filterType);
+  const blackCount = keywords.filter(k => k.list_type === 'blacklist').length;
+  const whiteCount = keywords.filter(k => k.list_type === 'whitelist').length;
+
+  return (
+    <div className="space-y-4">
+      {/* 统计卡片 */}
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+        <Card className="border-[#E5E6EB]">
+          <CardContent className="pt-4 pb-3 px-4 flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-red-50 flex items-center justify-center shrink-0">
+              <Tag className="w-4 h-4 text-red-500" />
+            </div>
+            <div>
+              <p className="text-xs text-gray-500">黑名单关键词</p>
+              <p className="text-xl font-bold text-gray-800">{blackCount}</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="border-[#E5E6EB]">
+          <CardContent className="pt-4 pb-3 px-4 flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-green-50 flex items-center justify-center shrink-0">
+              <Tag className="w-4 h-4 text-green-500" />
+            </div>
+            <div>
+              <p className="text-xs text-gray-500">白名单关键词</p>
+              <p className="text-xl font-bold text-gray-800">{whiteCount}</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="border-[#E5E6EB] col-span-2 md:col-span-1">
+          <CardContent className="pt-4 pb-3 px-4 flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
+              <Filter className="w-4 h-4 text-blue-500" />
+            </div>
+            <div>
+              <p className="text-xs text-gray-500">关键词总数</p>
+              <p className="text-xl font-bold text-gray-800">{keywords.length}</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* 添加关键词区域 */}
+      <Card className="border-[#E5E6EB]">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Plus className="w-4 h-4 text-[#165DFF]" />添加关键词
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex flex-col md:flex-row gap-2">
+            <div className="flex gap-2 flex-1">
+              <Textarea
+                value={newWord}
+                onChange={e => setNewWord(e.target.value)}
+                placeholder="输入关键词（多个关键词用逗号或换行分隔）"
+                rows={2}
+                className="flex-1 resize-none text-sm"
+              />
+              <Select value={listType} onValueChange={v => setListType(v as 'blacklist' | 'whitelist')}>
+                <SelectTrigger className="h-auto w-28 shrink-0 self-start mt-0.5">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="blacklist">🚫 黑名单</SelectItem>
+                  <SelectItem value="whitelist">✅ 白名单</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Button onClick={handleAdd} disabled={adding || !newWord.trim()}
+              className="bg-[#165DFF] hover:bg-[#165DFF]/90 text-white gap-1.5 self-start">
+              {adding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+              添加
+            </Button>
+          </div>
+
+          {/* 文件上传 */}
+          <div className="flex items-center gap-2 pt-1 border-t border-dashed border-[#E5E6EB]">
+            <Upload className="w-4 h-4 text-gray-400 shrink-0" />
+            <span className="text-xs text-gray-500 flex-1">
+              支持上传 TXT/CSV 文件批量导入（CSV格式：关键词,类型；TXT每行一个关键词）
+            </span>
+            <label className="cursor-pointer">
+              <input ref={fileInputRef} type="file" accept=".txt,.csv" className="hidden" onChange={handleFileUpload} />
+              <span className="inline-flex items-center gap-1 px-3 py-1.5 text-xs rounded-lg border border-[#E5E6EB] bg-gray-50 hover:bg-gray-100 transition-colors text-gray-600">
+                <Upload className="w-3 h-3" />选择文件
+              </span>
+            </label>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 关键词列表 */}
+      <Card className="border-[#E5E6EB]">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Filter className="w-4 h-4 text-[#165DFF]" />关键词列表
+            </CardTitle>
+            <div className="flex gap-1">
+              {(['all','blacklist','whitelist'] as const).map(t => (
+                <button key={t} onClick={() => setFilterType(t)}
+                  className={`px-2.5 py-1 rounded-lg text-xs transition-colors ${filterType === t ? 'bg-[#165DFF] text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                  {t === 'all' ? '全部' : t === 'blacklist' ? '🚫 黑名单' : '✅ 白名单'}
+                </button>
+              ))}
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <div className="flex items-center justify-center py-8 text-gray-400">
+              <Loader2 className="w-5 h-5 animate-spin mr-2" />加载中…
+            </div>
+          ) : displayed.length === 0 ? (
+            <div className="text-center py-8 text-gray-400 text-sm">
+              <Filter className="w-8 h-8 mx-auto mb-2 opacity-30" />暂无关键词
+            </div>
+          ) : (
+            <div className="flex flex-wrap gap-2 max-h-80 overflow-y-auto">
+              {displayed.map(k => (
+                <span key={k.id} className={`inline-flex items-center gap-1 pl-2.5 pr-1.5 py-1 rounded-full text-xs font-medium ${
+                  k.list_type === 'blacklist'
+                    ? 'bg-red-50 text-red-700 border border-red-200'
+                    : 'bg-green-50 text-green-700 border border-green-200'
+                }`}>
+                  {k.keyword}
+                  <button onClick={() => handleDelete(k.id)}
+                    className="ml-0.5 w-4 h-4 rounded-full flex items-center justify-center hover:bg-black/10 transition-colors">
+                    <XIcon className="w-2.5 h-2.5" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* 使用说明 */}
+      <Card className="border-[#E5E6EB] bg-blue-50/50">
+        <CardContent className="pt-4 pb-3 px-4">
+          <p className="text-xs font-medium text-blue-700 mb-1.5 flex items-center gap-1.5">
+            <ShieldCheck className="w-3.5 h-3.5" />使用说明
+          </p>
+          <ul className="text-xs text-blue-600 space-y-1 list-disc list-inside">
+            <li>黑名单：含有该关键词的内容提交时将被拦截并提示用户修改</li>
+            <li>白名单：该关键词不会被屏蔽（优先级高于黑名单）</li>
+            <li>检测范围：论坛发帖、论坛回帖、小组消息、用户资料修改</li>
+            <li>关键词匹配不区分大小写，支持模糊匹配</li>
+          </ul>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+type AdminTab = 'stats' | 'users' | 'news' | 'activities' | 'classrooms' | 'moderation' | 'messages' | 'logs' | 'forum' | 'keywords';
 
 const adminNavItems: { key: AdminTab; label: string; icon: React.ElementType }[] = [
   { key: 'stats', label: '数据统计', icon: TrendingUp },
@@ -1532,6 +1765,7 @@ const adminNavItems: { key: AdminTab; label: string; icon: React.ElementType }[]
   { key: 'activities', label: '社团活动', icon: Activity },
   { key: 'classrooms', label: '空教室', icon: DoorOpen },
   { key: 'moderation', label: '内容审核', icon: ShieldOff },
+  { key: 'keywords', label: '关键词过滤', icon: Filter },
   { key: 'messages', label: '联系消息', icon: Mail },
   { key: 'logs', label: '操作日志', icon: ScrollText },
 ];
@@ -1616,6 +1850,7 @@ export default function AdminPage() {
               {activeTab === 'activities'  && <ActivitiesPanel />}
               {activeTab === 'classrooms'  && <ClassroomsPanel />}
               {activeTab === 'moderation'  && <ContentModerationPanel />}
+              {activeTab === 'keywords'    && <KeywordPanel />}
               {activeTab === 'messages'    && <ContactMessagesPanel />}
               {activeTab === 'logs'        && <AdminLogsPanel />}
             </CardContent>

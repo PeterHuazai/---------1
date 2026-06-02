@@ -16,6 +16,7 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
+import { useBanStatus } from '@/hooks/useBanStatus';
 
 // ── 私聊数据类型 ───────────────────────────────────────────────
 interface PrivateMessage {
@@ -150,9 +151,10 @@ interface ChatPanelProps {
   initialPeerId?: string | null;
   friends: (Friendship & { profile: PublicProfile })[];
   onClose: () => void;
+  isBanned?: boolean;
 }
 
-function ChatPanel({ user, profile, initialPeerId, friends, onClose }: ChatPanelProps) {
+function ChatPanel({ user, profile, initialPeerId, friends, onClose, isBanned }: ChatPanelProps) {
   const [activePeerId, setActivePeerId] = useState<string | null>(initialPeerId ?? null);
   const [activePeer, setActivePeer] = useState<PublicProfile | null>(null);
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -239,6 +241,7 @@ function ChatPanel({ user, profile, initialPeerId, friends, onClose }: ChatPanel
 
   const handleSend = async () => {
     if (!user || !activePeerId || !content.trim()) return;
+    if (isBanned) { toast.error('你的账号已被封禁，无法发送私信'); return; }
     setSending(true);
     const { error } = await supabase.from('private_messages').insert({ sender_id: user.id, receiver_id: activePeerId, content: content.trim() });
     setSending(false);
@@ -375,8 +378,9 @@ export default function FriendsPage() {
   const { user, profile } = useAuth();
   const [searchParams] = useSearchParams();
   const initialChatUserId = searchParams.get('chatWith');
+  const { isBanned } = useBanStatus();
 
-  const [tab, setTab] = useState('friends');
+  const [tab, setTab] = useState(initialChatUserId ? 'chat' : 'friends');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<PublicProfile[]>([]);
   const [searching, setSearching] = useState(false);
@@ -466,6 +470,7 @@ export default function FriendsPage() {
   };
 
   const handleSendRequest = async (targetId: string) => {
+    if (isBanned) { toast.error('你的账号已被封禁，无法发送好友请求'); return; }
     const { error } = await supabase.from('friendships').insert({ user_id: user!.id, friend_id: targetId, status: 'pending' });
     if (error) { toast.error(error.code === '23505' ? '已经发送过好友请求' : '发送失败，请重试'); return; }
     toast.success('好友请求已发送');
@@ -636,6 +641,7 @@ export default function FriendsPage() {
             <TabsContent value="chat">
               <Card className="border-[#E5E6EB] shadow-sm overflow-hidden" style={{ height: 'calc(100vh - 320px)', minHeight: 460 }}>
                 <ChatPanel user={user} profile={profile} initialPeerId={chatPeerId} friends={friends}
+                  isBanned={isBanned}
                   onClose={() => { setTab('friends'); setChatOpen(false); setChatPeerId(null); }} />
               </Card>
             </TabsContent>
@@ -683,6 +689,7 @@ export default function FriendsPage() {
           <div className="lg:col-span-2">
             <Card className="border-[#E5E6EB] shadow-sm overflow-hidden" style={{ height: 'calc(100vh - 280px)', minHeight: 480 }}>
               <ChatPanel user={user} profile={profile} initialPeerId={chatPeerId} friends={friends}
+                isBanned={isBanned}
                 onClose={() => { setChatOpen(false); setChatPeerId(null); }} />
             </Card>
           </div>

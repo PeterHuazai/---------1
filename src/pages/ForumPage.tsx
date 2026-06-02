@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/dialog';
 import LoginPromptModal from '@/components/LoginPromptModal';
 import { toast } from 'sonner';
+import { useKeywordFilter } from '@/hooks/useKeywordFilter';
 
 // ── 类型 ──────────────────────────────────────────
 type Category = string;
@@ -425,6 +426,7 @@ function PostDetail({ post, onBack, onStartDM }: {
   onStartDM: (peerId: string, peerName: string) => void;
 }) {
   const { user } = useAuth();
+  const { checkContent } = useKeywordFilter();
   const [replies, setReplies] = useState<ForumReply[]>([]);
   const [loading, setLoading] = useState(true);
   const [replyText, setReplyText] = useState('');
@@ -477,6 +479,9 @@ function PostDetail({ post, onBack, onStartDM }: {
     if (!user) { setLoginPrompt(true); return; }
     if (isBanned) { toast.error('你的账号已被封禁，暂时无法回复'); return; }
     if (!replyText.trim()) { toast.error('回复内容不能为空'); return; }
+    // 关键词检测
+    const hits = await checkContent(replyText);
+    if (hits.length > 0) { toast.error(`回复包含违禁词：${hits.slice(0, 3).join('、')}，请修改后重新提交`); return; }
     setSubmitting(true);
     const { error } = await supabase.from('forum_replies').insert({
       post_id: post.id, author_id: user.id, content: replyText.trim(),
@@ -634,6 +639,7 @@ function NewPostDialog({
   open, onClose, cat, onSuccess,
 }: { open: boolean; onClose: () => void; cat: Category; onSuccess: () => void }) {
   const { user } = useAuth();
+  const { checkContent } = useKeywordFilter();
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -674,6 +680,9 @@ function NewPostDialog({
     if (!title.trim()) { toast.error('请填写帖子标题'); return; }
     if (!content.trim()) { toast.error('请填写帖子内容'); return; }
     if (title.length < 5) { toast.error('标题至少5个字符'); return; }
+    // 关键词检测（标题 + 内容）
+    const hits = await checkContent(title + ' ' + content);
+    if (hits.length > 0) { toast.error(`内容包含违禁词：${hits.slice(0, 3).join('、')}，请修改后重新提交`); return; }
     setSubmitting(true);
     const { error } = await supabase.from('forum_posts').insert({
       category: cat, title: title.trim(), content: content.trim(),

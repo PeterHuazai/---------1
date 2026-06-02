@@ -22,6 +22,8 @@ import {
 import { toast } from 'sonner';
 import LoginPromptModal from '@/components/LoginPromptModal';
 import type { PublicProfile, GroupTask, GroupFile, GroupInvitation } from '@/types/types';
+import { useBanStatus } from '@/hooks/useBanStatus';
+import { useKeywordFilter } from '@/hooks/useKeywordFilter';
 
 interface StudyGroup {
   id: string;
@@ -78,6 +80,8 @@ function timeAgo(dateStr: string) {
 export default function StudyGroupsPage() {
   const { user, profile } = useAuth();
   const navigate = useNavigate();
+  const { isBanned } = useBanStatus();
+  const { checkContent } = useKeywordFilter();
   const [groups, setGroups] = useState<StudyGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeGroup, setActiveGroup] = useState<StudyGroup | null>(null);
@@ -311,6 +315,7 @@ export default function StudyGroupsPage() {
   // 执行打卡
   const handleCheckin = async () => {
     if (!user || !activeGroup) return;
+    if (isBanned) { toast.error('你的账号已被封禁，无法打卡'); return; }
     if (!activeGroup.is_member) { toast.error('请先加入小组才能打卡'); return; }
     setDoingCheckin(true);
     const { data, error } = await supabase.from('group_checkins')
@@ -352,6 +357,7 @@ export default function StudyGroupsPage() {
   const handleCreateTask = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !activeGroup) return;
+    if (isBanned) { toast.error('你的账号已被封禁，无法发布任务'); return; }
     if (!taskForm.title.trim()) { toast.error('请填写任务标题'); return; }
     setCreatingTask(true);
     const { error } = await supabase.from('group_tasks').insert({
@@ -396,6 +402,7 @@ export default function StudyGroupsPage() {
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!user || !activeGroup) return;
+    if (isBanned) { toast.error('你的账号已被封禁，无法上传文件'); return; }
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 20 * 1024 * 1024) { toast.error('文件大小不能超过 20MB'); return; }
@@ -601,11 +608,15 @@ export default function StudyGroupsPage() {
 
   const handleSendMessage = async () => {
     if (!user || !activeGroup || !content.trim()) return;
+    if (isBanned) { toast.error('你的账号已被封禁，无法发送消息'); return; }
     // 检查是否被禁言
     if (memberRoles[user.id]?.is_muted) {
       toast.error('你已被禁言，无法发送消息');
       return;
     }
+    // 关键词检测
+    const hits = await checkContent(content);
+    if (hits.length > 0) { toast.error(`消息包含违禁词：${hits.slice(0, 3).join('、')}，请修改后发送`); return; }
     setSending(true);
     const { error } = await supabase.from('group_messages').insert({
       group_id: activeGroup.id, user_id: user.id, content: content.trim(),
@@ -1295,7 +1306,7 @@ export default function StudyGroupsPage() {
                             </button>
                             {/* 私聊 */}
                             <button
-                              onClick={() => navigate(`/friends?chat=${m.id}`)}
+                              onClick={() => navigate(`/friends?chatWith=${m.id}`)}
                               className="p-1.5 rounded-lg hover:bg-[#165DFF]/10 text-[#165DFF]/70 hover:text-[#165DFF] transition-colors"
                               title="发私信"
                             >
