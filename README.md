@@ -236,7 +236,7 @@
 ### 1. 克隆仓库
 
 ```bash
-git clone https://github.com/your-username/study-platform.git
+git clone [https://github.com/your-username/study-platform.git](https://github.com/PeterHuazai/---------1)
 cd study-platform
 ```
 
